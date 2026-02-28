@@ -218,7 +218,7 @@ export const MENU_ITEMS: MenuItem[] = [
     id: 'm22',
     name: 'Chicken Sundal Salad',
     description: 'A light, high-protein mix of chicken and sundal, seasoned to perfection.',
-    price: '₹160',
+    price: '₹110',
     category: 'Salads',
     image: imgSundalSalad
   }

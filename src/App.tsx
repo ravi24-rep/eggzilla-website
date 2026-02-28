@@ -146,9 +146,9 @@ export default function App() {
     message += `*Total Amount: ₹${total}*%0A%0A`;
 
     if (method === 'gpay') {
-      message += `_Payment Status: User confirms payment completed via UPI/GPay. Please check your app._`;
+      message += `*Payment Status:* ✅ Paid via UPI/GPay%0A_(Please verify the ₹${total} transfer in your app)_`;
     } else {
-      message += `_Payment Status: Pay at Stall upon collection._`;
+      message += `*Payment Status:* 🪙 Pay at the Stall%0A_(👉 Please collect ₹${total} from the customer at the stall)_`;
     }
 
     // Owner's WhatsApp number
