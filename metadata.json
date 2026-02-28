@@ -1,0 +1,5 @@
+{
+  "name": "Eggzilla - Protein Power Food Stall",
+  "description": "Healthy and delicious egg-based meals in Dharmapuri. Fuel your body with protein-rich egg varieties.",
+  "requestFramePermissions": ["geolocation"]
+}
