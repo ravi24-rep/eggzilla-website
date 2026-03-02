@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { MENU_ITEMS, CATEGORIES, MenuItem } from '../types';
-import { ShoppingCart, Plus, CheckCircle2, Egg } from 'lucide-react';
+import { ShoppingCart, Plus, CheckCircle2, Egg, Loader2 } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface MenuProps {
@@ -32,6 +32,12 @@ function MenuItemCard({ item, onAddToCart, isMobile }: MenuItemCardProps) {
     setTimeout(() => setIsAdded(false), 1500);
   };
 
+  // Resolve the image source: use base path for relative /menu/ paths
+  const basePath = (import.meta as any).env?.BASE_URL || '/';
+  const imgSrc = item.image.startsWith('/menu/')
+    ? `${basePath}${item.image.slice(1)}`
+    : item.image;
+
   return (
     <motion.div
       layout
@@ -49,7 +55,7 @@ function MenuItemCard({ item, onAddToCart, isMobile }: MenuItemCardProps) {
       <div className="relative overflow-hidden rounded-[20px] sm:rounded-[24px] mb-4 sm:mb-6 aspect-[4/3] shrink-0 bg-egg-black/5 flex items-center justify-center">
         {!imageError ? (
           <img
-            src={item.image}
+            src={imgSrc}
             alt={item.name}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             referrerPolicy="no-referrer"
@@ -129,11 +135,30 @@ function MenuItemCard({ item, onAddToCart, isMobile }: MenuItemCardProps) {
 
 export default function Menu({ onAddToCart }: MenuProps) {
   const [activeCategory, setActiveCategory] = useState('All');
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU_ITEMS);
+  const [isLoading, setIsLoading] = useState(true);
   const isMobile = useIsMobile();
 
+  // Fetch menu items from the backend API
+  useEffect(() => {
+    fetch('/api/menu')
+      .then(res => res.json())
+      .then((data: MenuItem[]) => {
+        if (data && data.length > 0) {
+          setMenuItems(data);
+        }
+        setIsLoading(false);
+      })
+      .catch(() => {
+        // Fallback to hardcoded items if API is unavailable
+        console.warn('API unavailable, using hardcoded menu.');
+        setIsLoading(false);
+      });
+  }, []);
+
   const filteredItems = activeCategory === 'All'
-    ? MENU_ITEMS
-    : MENU_ITEMS.filter(item => item.category === activeCategory);
+    ? menuItems
+    : menuItems.filter(item => item.category === activeCategory);
 
   return (
     <section id="menu" className="py-24 bg-egg-white">

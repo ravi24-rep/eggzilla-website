@@ -12,6 +12,8 @@ import Testimonials from './components/Testimonials';
 import WhatsAppButton from './components/WhatsAppButton';
 import BackToTop from './components/BackToTop';
 import LoadingScreen from './components/LoadingScreen';
+import AdminDashboard from './components/AdminDashboard';
+import OrderTracker from './components/OrderTracker';
 import { motion, useScroll, useSpring, AnimatePresence, useTransform } from 'motion/react';
 import { useState, useEffect, useRef } from 'react';
 import { CartItem, MenuItem } from './types';
@@ -19,6 +21,22 @@ import { CheckCircle2 } from 'lucide-react';
 import { useIsMobile } from './hooks/useIsMobile';
 
 export default function App() {
+  // Hash-based routing
+  const [route, setRoute] = useState(window.location.hash);
+
+  useEffect(() => {
+    const handleHashChange = () => setRoute(window.location.hash);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  if (route === '#admin') return <AdminDashboard />;
+  if (route.startsWith('#track')) return <OrderTracker />;
+
+  return <CustomerApp />;
+}
+
+function CustomerApp() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -116,11 +134,35 @@ export default function App() {
     setIsCheckoutModalOpen(true);
   };
 
-  const handleConfirmPayment = (method: 'gpay' | 'stall') => {
+  const handleConfirmPayment = async (method: 'gpay' | 'stall') => {
     const total = cart.reduce((acc, item) => {
       const price = parseInt(item.price.replace('₹', ''));
       return acc + price * item.quantity;
     }, 0);
+
+    // Track order in our new SQLite backend!
+    try {
+      const orderPayload = {
+        customerName: orderDetails.name || 'Walk-in Customer',
+        customerPhone: '',
+        totalAmount: total,
+        paymentMethod: method === 'gpay' ? 'UPI' : 'Cash',
+        items: cart.map(item => ({
+          name: item.name + (item.selectedOptions?.length ? ` (${item.selectedOptions.join(', ')})` : ''),
+          quantity: item.quantity,
+          price: parseInt(item.price.replace('₹', ''))
+        }))
+      };
+
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload)
+      });
+      console.log('Order successfully saved to backend database');
+    } catch (error) {
+      console.error('Failed to save order to backend:', error);
+    }
 
     // Format the message
     let message = `*New Order from Eggzilla!*%0A%0A`;

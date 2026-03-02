@@ -1,13 +1,27 @@
 import { Instagram, Facebook, Twitter } from 'lucide-react';
+import { useState } from 'react';
 import eggzillaLogo from '../assets/eggzilla-logo.png';
 
 export default function Footer() {
+  const [tapCount, setTapCount] = useState(0);
+
+  const handleLogoTap = () => {
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+    if (newCount >= 5) {
+      setTapCount(0);
+      window.location.hash = 'admin';
+    }
+    // Reset after 3 seconds of inactivity
+    setTimeout(() => setTapCount(0), 3000);
+  };
+
   return (
     <footer className="bg-egg-black text-white pt-20 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid md:grid-cols-4 gap-12 mb-16 text-center md:text-left">
           <div className="col-span-2 flex flex-col items-center md:items-start">
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-6 cursor-pointer select-none" onClick={handleLogoTap}>
               <img src={eggzillaLogo} alt="Eggzilla Logo" className="w-10 h-10 object-contain" />
               <span className="text-2xl font-display font-extrabold tracking-tighter">
                 EGG<span className="text-egg-orange">ZILLA</span>

@@ -23,6 +23,12 @@ interface CartItemRowProps {
 function CartItemRow({ item, onUpdateQuantity, onRemoveItem }: CartItemRowProps) {
   const [imageError, setImageError] = useState(false);
 
+  // Resolve the image source: use base path for relative /menu/ paths
+  const basePath = (import.meta as any).env?.BASE_URL || '/';
+  const imgSrc = item.image.startsWith('/menu/')
+    ? `${basePath}${item.image.slice(1)}`
+    : item.image;
+
   return (
     <motion.div
       layout
@@ -35,7 +41,7 @@ function CartItemRow({ item, onUpdateQuantity, onRemoveItem }: CartItemRowProps)
       <div className="w-20 h-20 rounded-2xl overflow-hidden bg-egg-black/5 flex items-center justify-center shrink-0 border border-egg-black/5">
         {!imageError ? (
           <img
-            src={item.image}
+            src={imgSrc}
             alt={item.name}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
