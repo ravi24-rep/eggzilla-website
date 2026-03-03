@@ -141,6 +141,7 @@ function CustomerApp() {
     }, 0);
 
     // Track order in our new SQLite backend!
+    let generatedOrderId = '';
     try {
       const orderPayload = {
         customerName: orderDetails.name || 'Walk-in Customer',
@@ -154,18 +155,25 @@ function CustomerApp() {
         }))
       };
 
-      await fetch('/api/orders', {
+      const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload)
       });
-      console.log('Order successfully saved to backend database');
+      const data = await response.json();
+      if (data.success && data.orderId) {
+        generatedOrderId = data.orderId;
+        console.log('Order successfully saved to backend database:', generatedOrderId);
+      }
     } catch (error) {
       console.error('Failed to save order to backend:', error);
     }
 
     // Format the message
     let message = `*New Order from Eggzilla!*%0A%0A`;
+    if (generatedOrderId) {
+      message += `*Order ID:* ${generatedOrderId}%0A`;
+    }
 
     if (orderDetails.name && orderDetails.name.trim() !== '') {
       message += `*Customer Name:* ${orderDetails.name.trim()}%0A`;
@@ -200,7 +208,11 @@ function CustomerApp() {
     // Open WhatsApp
     window.open(whatsappUrl, '_blank');
 
-    showToast(`Order sent to WhatsApp! Total: ₹${total}`);
+    if (generatedOrderId) {
+      window.location.hash = `#track/${generatedOrderId}`;
+    } else {
+      showToast(`Order sent to WhatsApp! Total: ₹${total}`);
+    }
 
     setCart([]);
     setIsCheckoutModalOpen(false);

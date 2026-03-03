@@ -16,6 +16,7 @@ export default function Navbar({ cartCount, onOpenCart }: NavbarProps) {
     { name: 'About', href: '#about' },
     { name: 'Menu', href: '#menu' },
     { name: 'Location', href: '#location' },
+    { name: 'Track Order', href: '#track/' },
   ];
 
   return (
