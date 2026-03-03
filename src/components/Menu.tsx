@@ -50,15 +50,17 @@ function MenuItemCard({ item, onAddToCart, isMobile }: MenuItemCardProps) {
         transition: { duration: 0.3 }
       }}
       transition={{ duration: 0.5 }}
-      className="group bg-white rounded-[32px] sm:rounded-[48px] p-4 sm:p-6 border border-egg-black/5 shadow-xl hover:shadow-2xl hover:shadow-egg-orange/10 transition-all flex flex-col h-full perspective-1000"
+      className="group bg-white rounded-[32px] sm:rounded-[48px] p-4 sm:p-6 border border-egg-black/5 shadow-xl hover:shadow-2xl hover:shadow-egg-orange/10 transition-all flex flex-col h-full perspective-1000 transform-gpu"
     >
       <div className="relative overflow-hidden rounded-[20px] sm:rounded-[24px] mb-4 sm:mb-6 aspect-[4/3] shrink-0 bg-egg-black/5 flex items-center justify-center">
         {!imageError ? (
           <img
             src={imgSrc}
             alt={item.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 transform-gpu"
             referrerPolicy="no-referrer"
+            loading="lazy"
+            decoding="async"
             onError={() => setImageError(true)}
           />
         ) : (

@@ -170,7 +170,8 @@ function CustomerApp() {
     }
 
     // Format the message
-    let message = `*New Order from Eggzilla!*%0A%0A`;
+    const paymentStr = method === 'gpay' ? 'UPI' : 'At Stall';
+    let message = `*New Order: ₹${total} (${paymentStr})*%0A%0A`;
     if (generatedOrderId) {
       message += `*Order ID:* ${generatedOrderId}%0A`;
     }
