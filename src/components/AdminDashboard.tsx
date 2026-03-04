@@ -215,7 +215,7 @@ function OrdersSection({ orders, onRefresh, onStatusChange }: {
                                         </span>
                                     </div>
                                     <p className="text-white/60 text-sm truncate">{order.customer_name}</p>
-                                    <p className="text-white/30 text-xs">{new Date(order.created_at).toLocaleString()}</p>
+                                    <p className="text-white/30 text-xs">{new Date(order.created_at.replace(' ', 'T') + 'Z').toLocaleString()}</p>
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className="text-amber-400 font-black text-lg">₹{order.total_amount}</p>

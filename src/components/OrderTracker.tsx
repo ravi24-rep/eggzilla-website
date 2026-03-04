@@ -176,7 +176,7 @@ export default function OrderTracker() {
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-white/40">Placed At</span>
-                                    <span className="text-white">{new Date(order.created_at).toLocaleString()}</span>
+                                    <span className="text-white">{new Date(order.created_at.replace(' ', 'T') + 'Z').toLocaleString()}</span>
                                 </div>
                             </div>
 
