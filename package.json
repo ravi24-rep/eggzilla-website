@@ -10,11 +10,12 @@
     "build": "vite build && tsx server/seed.ts",
     "seed": "tsx server/seed.ts",
     "preview": "vite preview",
-    "predeploy": "GITHUB_PAGES=true vite build",
+    "predeploy": "set GITHUB_PAGES=true&& vite build",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@libsql/client": "^0.17.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@tailwindcss/vite": "^4.1.14",
@@ -22,7 +23,7 @@
     "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^5.0.4",
     "better-sqlite3": "^12.4.1",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.3.1",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

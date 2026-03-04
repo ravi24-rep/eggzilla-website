@@ -16,7 +16,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.use(express.json());
 
 // Serve uploaded menu images
-// Use DATA_DIR from environment if available (for Render persistent disks), otherwise default to public
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.resolve(__dirname, '..', 'public');
 const menuDir = path.resolve(dataDir, 'menu');
 if (!fs.existsSync(menuDir)) fs.mkdirSync(menuDir, { recursive: true });
@@ -34,9 +33,6 @@ const upload = multer({
         cb(null, allowed.includes(file.mimetype));
     },
 });
-
-// Initialize database
-initDb();
 
 // POST /api/admin/upload - Upload menu item image
 app.post('/api/admin/upload', upload.single('image'), (req, res) => {
@@ -57,10 +53,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // GET /api/menu
-app.get('/api/menu', (req, res) => {
+app.get('/api/menu', async (req, res) => {
     try {
-        const rows: any[] = db.prepare('SELECT * FROM menu_items WHERE available = 1').all();
-        const items = rows.map((row: any) => ({
+        const result = await db.execute('SELECT * FROM menu_items WHERE available = 1');
+        const items = result.rows.map((row: any) => ({
             id: row.id,
             name: row.name,
             description: row.description,
@@ -68,7 +64,7 @@ app.get('/api/menu', (req, res) => {
             category: row.category,
             image: row.image,
             customizable: row.customizable === 1 ? true : undefined,
-            options: row.options ? row.options.split(',') : undefined,
+            options: row.options ? row.options.toString().split(',') : undefined,
             bestseller: row.bestseller === 1 ? true : undefined,
         }));
         res.json(items);
@@ -79,10 +75,10 @@ app.get('/api/menu', (req, res) => {
 });
 
 // GET /api/orders
-app.get('/api/orders', (req, res) => {
+app.get('/api/orders', async (req, res) => {
     try {
-        const orders = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
-        res.json(orders);
+        const result = await db.execute('SELECT * FROM orders ORDER BY created_at DESC');
+        res.json(result.rows);
     } catch (error) {
         console.error('Error fetching orders:', error);
         res.status(500).json({ error: 'Failed to fetch orders' });
@@ -90,7 +86,7 @@ app.get('/api/orders', (req, res) => {
 });
 
 // POST /api/orders
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', async (req, res) => {
     const { customerName, customerPhone, totalAmount, paymentMethod, items } = req.body;
 
     if (!customerName || !totalAmount || !items || !items.length) {
@@ -101,23 +97,24 @@ app.post('/api/orders', (req, res) => {
     try {
         const orderId = 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase();
 
-        const insertTransaction = db.transaction(() => {
-            const insertOrder = db.prepare(`
-        INSERT INTO orders (id, customer_name, customer_phone, total_amount, payment_method)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-            insertOrder.run(orderId, customerName, customerPhone || '', totalAmount, paymentMethod || 'Cash');
+        const tx = await db.transaction();
+        try {
+            await tx.execute({
+                sql: `INSERT INTO orders (id, customer_name, customer_phone, total_amount, payment_method) VALUES (?, ?, ?, ?, ?)`,
+                args: [orderId, customerName, customerPhone || '', totalAmount, paymentMethod || 'Cash']
+            });
 
-            const insertItem = db.prepare(`
-        INSERT INTO order_items (order_id, item_name, quantity, price)
-        VALUES (?, ?, ?, ?)
-      `);
             for (const item of items) {
-                insertItem.run(orderId, item.name, item.quantity || 1, item.price || 0);
+                await tx.execute({
+                    sql: `INSERT INTO order_items (order_id, item_name, quantity, price) VALUES (?, ?, ?, ?)`,
+                    args: [orderId, item.name, item.quantity || 1, item.price || 0]
+                });
             }
-        });
-
-        insertTransaction();
+            await tx.commit();
+        } catch (e) {
+            await tx.rollback();
+            throw e;
+        }
 
         res.status(201).json({ success: true, orderId });
     } catch (error) {
@@ -126,16 +123,23 @@ app.post('/api/orders', (req, res) => {
     }
 });
 
-// GET /api/track/:id - Public order tracking (limited info for customers)
-app.get('/api/track/:id', (req, res) => {
+// GET /api/track/:id
+app.get('/api/track/:id', async (req, res) => {
     try {
-        const order = db.prepare('SELECT id, customer_name, total_amount, status, payment_method, created_at FROM orders WHERE id = ?').get(req.params.id) as any;
+        const orderRes = await db.execute({
+            sql: 'SELECT id, customer_name, total_amount, status, payment_method, created_at FROM orders WHERE id = ?',
+            args: [req.params.id]
+        });
+        const order = orderRes.rows[0] as any;
         if (!order) {
             res.status(404).json({ error: 'Order not found' });
             return;
         }
-        const items = db.prepare('SELECT item_name, quantity, price FROM order_items WHERE order_id = ?').all(req.params.id);
-        res.json({ ...order, items });
+        const itemsRes = await db.execute({
+            sql: 'SELECT item_name, quantity, price FROM order_items WHERE order_id = ?',
+            args: [req.params.id]
+        });
+        res.json({ ...order, items: itemsRes.rows });
     } catch (error) {
         console.error('Error tracking order:', error);
         res.status(500).json({ error: 'Failed to track order' });
@@ -146,24 +150,30 @@ app.get('/api/track/:id', (req, res) => {
 // ADMIN ENDPOINTS
 // ==========================================
 
-app.get('/api/orders/:id/items', (req, res) => {
+app.get('/api/orders/:id/items', async (req, res) => {
     try {
-        const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id);
-        res.json(items);
+        const items = await db.execute({
+            sql: 'SELECT * FROM order_items WHERE order_id = ?',
+            args: [req.params.id]
+        });
+        res.json(items.rows);
     } catch (error) {
         console.error('Error fetching order items:', error);
         res.status(500).json({ error: 'Failed to fetch order items' });
     }
 });
 
-app.patch('/api/orders/:id/status', (req, res) => {
+app.patch('/api/orders/:id/status', async (req, res) => {
     const { status } = req.body;
     if (!status) {
         res.status(400).json({ error: 'Status is required' });
         return;
     }
     try {
-        db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id);
+        await db.execute({
+            sql: 'UPDATE orders SET status = ? WHERE id = ?',
+            args: [status, req.params.id]
+        });
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating order status:', error);
@@ -171,10 +181,10 @@ app.patch('/api/orders/:id/status', (req, res) => {
     }
 });
 
-app.get('/api/admin/menu', (req, res) => {
+app.get('/api/admin/menu', async (req, res) => {
     try {
-        const rows: any[] = db.prepare('SELECT * FROM menu_items').all();
-        const items = rows.map((row: any) => ({
+        const result = await db.execute('SELECT * FROM menu_items');
+        const items = result.rows.map((row: any) => ({
             id: row.id,
             name: row.name,
             description: row.description,
@@ -182,7 +192,7 @@ app.get('/api/admin/menu', (req, res) => {
             category: row.category,
             image: row.image,
             customizable: row.customizable === 1,
-            options: row.options ? row.options.split(',') : [],
+            options: row.options ? row.options.toString().split(',') : [],
             bestseller: row.bestseller === 1,
             available: row.available === 1,
         }));
@@ -193,8 +203,8 @@ app.get('/api/admin/menu', (req, res) => {
     }
 });
 
-// POST /api/admin/menu - Add new menu item
-app.post('/api/admin/menu', (req, res) => {
+// POST /api/admin/menu
+app.post('/api/admin/menu', async (req, res) => {
     const { name, description, price, category, image, customizable, options, bestseller } = req.body;
     if (!name || !price || !category) {
         res.status(400).json({ error: 'Name, price, and category are required' });
@@ -202,9 +212,11 @@ app.post('/api/admin/menu', (req, res) => {
     }
     try {
         const id = 'm' + Date.now();
-        db.prepare(`INSERT INTO menu_items (id, name, description, price, category, image, customizable, options, bestseller, available)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
-            .run(id, name, description || '', price, category, image || '/menu/default.png', customizable ? 1 : 0, options || null, bestseller ? 1 : 0);
+        await db.execute({
+            sql: `INSERT INTO menu_items (id, name, description, price, category, image, customizable, options, bestseller, available)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            args: [id, name, description || '', price, category, image || '/menu/default.png', customizable ? 1 : 0, options || null, bestseller ? 1 : 0]
+        });
         res.status(201).json({ success: true, id });
     } catch (error) {
         console.error('Error adding menu item:', error);
@@ -212,12 +224,14 @@ app.post('/api/admin/menu', (req, res) => {
     }
 });
 
-// PUT /api/admin/menu/:id - Edit a menu item fully
-app.put('/api/admin/menu/:id', (req, res) => {
+// PUT /api/admin/menu/:id
+app.put('/api/admin/menu/:id', async (req, res) => {
     const { name, description, price, category, image, customizable, options, bestseller } = req.body;
     try {
-        db.prepare(`UPDATE menu_items SET name=?, description=?, price=?, category=?, image=?, customizable=?, options=?, bestseller=? WHERE id=?`)
-            .run(name, description, price, category, image, customizable ? 1 : 0, options || null, bestseller ? 1 : 0, req.params.id);
+        await db.execute({
+            sql: `UPDATE menu_items SET name=?, description=?, price=?, category=?, image=?, customizable=?, options=?, bestseller=? WHERE id=?`,
+            args: [name, description, price, category, image, customizable ? 1 : 0, options || null, bestseller ? 1 : 0, req.params.id]
+        });
         res.json({ success: true });
     } catch (error) {
         console.error('Error editing menu item:', error);
@@ -225,10 +239,13 @@ app.put('/api/admin/menu/:id', (req, res) => {
     }
 });
 
-// DELETE /api/admin/menu/:id - Delete a menu item
-app.delete('/api/admin/menu/:id', (req, res) => {
+// DELETE /api/admin/menu/:id
+app.delete('/api/admin/menu/:id', async (req, res) => {
     try {
-        db.prepare('DELETE FROM menu_items WHERE id = ?').run(req.params.id);
+        await db.execute({
+            sql: 'DELETE FROM menu_items WHERE id = ?',
+            args: [req.params.id]
+        });
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting menu item:', error);
@@ -236,14 +253,20 @@ app.delete('/api/admin/menu/:id', (req, res) => {
     }
 });
 
-app.patch('/api/admin/menu/:id', (req, res) => {
+app.patch('/api/admin/menu/:id', async (req, res) => {
     const { available, price } = req.body;
     try {
         if (available !== undefined) {
-            db.prepare('UPDATE menu_items SET available = ? WHERE id = ?').run(available ? 1 : 0, req.params.id);
+            await db.execute({
+                sql: 'UPDATE menu_items SET available = ? WHERE id = ?',
+                args: [available ? 1 : 0, req.params.id]
+            });
         }
         if (price !== undefined) {
-            db.prepare('UPDATE menu_items SET price = ? WHERE id = ?').run(price, req.params.id);
+            await db.execute({
+                sql: 'UPDATE menu_items SET price = ? WHERE id = ?',
+                args: [price, req.params.id]
+            });
         }
         res.json({ success: true });
     } catch (error) {
@@ -262,79 +285,88 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-app.get('/api/admin/stats', (req, res) => {
+app.get('/api/admin/stats', async (req, res) => {
     try {
-        const totalOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status != 'Cancelled'").get() as any).count;
-        const totalRevenue = (db.prepare("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != 'Cancelled'").get() as any).total;
-        const pendingOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'Pending'").get() as any).count;
-        const todayOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'").get() as any).count;
-        const todayRevenue = (db.prepare("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'").get() as any).total;
-        const cancelledOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'Cancelled'").get() as any).count;
-        res.json({ totalOrders, totalRevenue, pendingOrders, todayOrders, todayRevenue, cancelledOrders });
+        const totalOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE status != 'Cancelled'");
+        const totalRevenueRes = await db.execute("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != 'Cancelled'");
+        const pendingOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE status = 'Pending'");
+        const todayOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'");
+        const todayRevenueRes = await db.execute("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'");
+        const cancelledOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE status = 'Cancelled'");
+
+        res.json({
+            totalOrders: totalOrdersRes.rows[0].count,
+            totalRevenue: totalRevenueRes.rows[0].total,
+            pendingOrders: pendingOrdersRes.rows[0].count,
+            todayOrders: todayOrdersRes.rows[0].count,
+            todayRevenue: todayRevenueRes.rows[0].total,
+            cancelledOrders: cancelledOrdersRes.rows[0].count
+        });
     } catch (error) {
         console.error('Error fetching stats:', error);
         res.status(500).json({ error: 'Failed to fetch stats' });
     }
 });
 
-// GET /api/admin/report - Daily sales report
-app.get('/api/admin/report', (req, res) => {
+// GET /api/admin/report
+app.get('/api/admin/report', async (req, res) => {
     try {
-        // Best selling items
-        const bestSellers: any[] = db.prepare(`
+        const bestSellers = await db.execute(`
             SELECT item_name, SUM(quantity) as total_qty, SUM(price * quantity) as total_revenue
             FROM order_items oi JOIN orders o ON oi.order_id = o.id
             WHERE o.status != 'Cancelled'
             GROUP BY item_name ORDER BY total_qty DESC LIMIT 10
-        `).all();
+        `);
 
-        // Orders by hour (peak hours)
-        const peakHours: any[] = db.prepare(`
+        const peakHours = await db.execute(`
             SELECT strftime('%H', created_at) as hour, COUNT(*) as count
             FROM orders WHERE status != 'Cancelled'
             GROUP BY hour ORDER BY count DESC
-        `).all();
+        `);
 
-        // Daily totals for last 7 days
-        const dailyTotals: any[] = db.prepare(`
+        const dailyTotals = await db.execute(`
             SELECT DATE(created_at) as date, COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue
             FROM orders WHERE status != 'Cancelled'
             GROUP BY date ORDER BY date DESC LIMIT 7
-        `).all();
+        `);
 
-        res.json({ bestSellers, peakHours, dailyTotals });
+        res.json({
+            bestSellers: bestSellers.rows,
+            peakHours: peakHours.rows,
+            dailyTotals: dailyTotals.rows
+        });
     } catch (error) {
         console.error('Error generating report:', error);
         res.status(500).json({ error: 'Failed to generate report' });
     }
 });
 
-// POST /api/admin/auto-cancel - Auto-cancel stale pending orders (older than 30 min)
-app.post('/api/admin/auto-cancel', (req, res) => {
+// POST /api/admin/auto-cancel
+app.post('/api/admin/auto-cancel', async (req, res) => {
     try {
-        const result = db.prepare(`
+        const result = await db.execute(`
             UPDATE orders SET status = 'Cancelled'
             WHERE status = 'Pending' AND created_at < datetime('now', '-30 minutes')
-        `).run();
-        res.json({ success: true, cancelledCount: result.changes });
+        `);
+        res.json({ success: true, cancelledCount: result.rowsAffected });
     } catch (error) {
         console.error('Error auto-cancelling:', error);
         res.status(500).json({ error: 'Failed to auto-cancel' });
     }
 });
 
-// GET /api/admin/orders/export - Export orders as CSV
-app.get('/api/admin/orders/export', (req, res) => {
+// GET /api/admin/orders/export
+app.get('/api/admin/orders/export', async (req, res) => {
     try {
-        const orders: any[] = db.prepare(`
+        const result = await db.execute(`
             SELECT o.id, o.customer_name, o.customer_phone, o.total_amount, o.status, o.payment_method, o.created_at,
                    GROUP_CONCAT(oi.item_name || ' x' || oi.quantity, '; ') as items
             FROM orders o LEFT JOIN order_items oi ON o.id = oi.order_id
             GROUP BY o.id ORDER BY o.created_at DESC
-        `).all();
+        `);
 
         let csv = 'Order ID,Customer,Phone,Amount,Status,Payment,Date,Items\n';
-        for (const o of orders) {
+        for (const o of result.rows as any[]) {
             csv += `${o.id},"${o.customer_name}","${o.customer_phone || ''}",${o.total_amount},${o.status},${o.payment_method},"${o.created_at}","${o.items || ''}"\n`;
         }
 
@@ -351,12 +383,13 @@ app.get('/api/admin/orders/export', (req, res) => {
 // SERVE FRONTEND
 // ==========================================
 async function startServer() {
+    // Initialize the remote Turso DB gracefully on boot
+    await initDb();
+
     if (isProduction) {
-        // PRODUCTION: Serve pre-built static files
         const distPath = path.resolve(__dirname, '..', 'dist');
         app.use(express.static(distPath));
 
-        // SPA fallback — serve index.html for all non-API routes
         app.get('*', (req, res) => {
             if (!req.path.startsWith('/api')) {
                 res.sendFile(path.join(distPath, 'index.html'));
@@ -368,7 +401,6 @@ async function startServer() {
             console.log(`🔐 Admin: http://localhost:${PORT}/#admin\n`);
         });
     } else {
-        // DEVELOPMENT: Use Vite middleware for HMR
         const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({
             server: { middlewareMode: true },

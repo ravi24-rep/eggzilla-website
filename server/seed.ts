@@ -1,7 +1,6 @@
 import db, { initDb } from './db.js';
 
-// Initialize database tables first
-initDb();
+// Wait to init db inside the async IIFE
 
 // All menu items from the original types.ts, now with public image paths
 const MENU_ITEMS = [
@@ -195,28 +194,37 @@ const MENU_ITEMS = [
 ];
 
 // Seed the database
-const insertStmt = db.prepare(`
-  INSERT OR REPLACE INTO menu_items (id, name, description, price, category, image, customizable, options, bestseller, available)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-`);
+const seedDatabase = async () => {
+    await initDb();
 
-const seedTransaction = db.transaction(() => {
-    for (const item of MENU_ITEMS) {
-        insertStmt.run(
-            item.id,
-            item.name,
-            item.description,
-            item.price,
-            item.category,
-            item.image,
-            item.customizable || 0,
-            item.options || null,
-            item.bestseller || 0
-        );
+    const tx = await db.transaction();
+    try {
+        for (const item of MENU_ITEMS) {
+            await tx.execute({
+                sql: `
+                  INSERT OR REPLACE INTO menu_items (id, name, description, price, category, image, customizable, options, bestseller, available)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                `,
+                args: [
+                    item.id,
+                    item.name,
+                    item.description,
+                    item.price,
+                    item.category,
+                    item.image,
+                    item.customizable || 0,
+                    item.options || null,
+                    item.bestseller || 0
+                ]
+            });
+        }
+        await tx.commit();
+        console.log(`✅ Successfully seeded ${MENU_ITEMS.length} menu items into the database!`);
+    } catch (err) {
+        await tx.rollback();
+        console.error('Failed to seed DB', err);
     }
-});
+    process.exit(0);
+};
 
-seedTransaction();
-
-console.log(`✅ Successfully seeded ${MENU_ITEMS.length} menu items into the database!`);
-process.exit(0);
+seedDatabase();
