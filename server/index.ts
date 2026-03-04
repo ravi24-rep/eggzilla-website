@@ -104,7 +104,8 @@ app.post('/api/orders', async (req, res) => {
                 });
                 if (check.rows.length === 0 || check.rows[0].available === 0) {
                     res.status(400).json({
-                        error: `Sorry, ${check.rows.length ? check.rows[0].name : item.name} just sold out!`
+                        error: `Sorry, ${check.rows.length ? check.rows[0].name : item.name} just sold out! It has been removed from your plate.`,
+                        soldOutItemId: item.id
                     });
                     return;
                 }

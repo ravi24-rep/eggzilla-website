@@ -165,6 +165,10 @@ function CustomerApp() {
 
       if (!response.ok) {
         setIsCheckoutModalOpen(false);
+        if (data.soldOutItemId) {
+          // Remove the specific sold out item from the cart
+          setCart(prev => prev.filter(i => i.id !== data.soldOutItemId));
+        }
         showToast(data.error || 'Failed to place order. Items might be out of stock.');
         return; // Halt checkout completely!
       }
