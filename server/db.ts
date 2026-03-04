@@ -3,7 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.resolve(__dirname, '../database.sqlite');
+
+// Use DATA_DIR from environment if available (for Render persistent disks), otherwise default
+const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.resolve(__dirname, '..');
+const dbPath = path.resolve(dataDir, 'database.sqlite');
 
 // Connect to SQLite database
 const db = new Database(dbPath);

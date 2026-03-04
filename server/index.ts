@@ -16,7 +16,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.use(express.json());
 
 // Serve uploaded menu images
-const menuDir = path.resolve(__dirname, '..', 'public', 'menu');
+// Use DATA_DIR from environment if available (for Render persistent disks), otherwise default to public
+const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.resolve(__dirname, '..', 'public');
+const menuDir = path.resolve(dataDir, 'menu');
 if (!fs.existsSync(menuDir)) fs.mkdirSync(menuDir, { recursive: true });
 app.use('/menu', express.static(menuDir));
 
