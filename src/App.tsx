@@ -149,6 +149,7 @@ function CustomerApp() {
         totalAmount: total,
         paymentMethod: method === 'gpay' ? 'UPI' : 'Cash',
         items: cart.map(item => ({
+          id: item.id,
           name: item.name + (item.selectedOptions?.length ? ` (${item.selectedOptions.join(', ')})` : ''),
           quantity: item.quantity,
           price: parseInt(item.price.replace('₹', ''))
@@ -161,12 +162,22 @@ function CustomerApp() {
         body: JSON.stringify(orderPayload)
       });
       const data = await response.json();
+
+      if (!response.ok) {
+        setIsCheckoutModalOpen(false);
+        showToast(data.error || 'Failed to place order. Items might be out of stock.');
+        return; // Halt checkout completely!
+      }
+
       if (data.success && data.orderId) {
         generatedOrderId = data.orderId;
         console.log('Order successfully saved to backend database:', generatedOrderId);
       }
     } catch (error) {
       console.error('Failed to save order to backend:', error);
+      setIsCheckoutModalOpen(false);
+      showToast('Network error while placing order. Please try again.');
+      return; // Halt checkout
     }
 
     // Format the message

@@ -95,6 +95,22 @@ app.post('/api/orders', async (req, res) => {
     }
 
     try {
+        // --- Validation: Check availability of all items before processing ---
+        for (const item of items) {
+            if (item.id) {
+                const check = await db.execute({
+                    sql: 'SELECT available, name FROM menu_items WHERE id = ?',
+                    args: [item.id]
+                });
+                if (check.rows.length === 0 || check.rows[0].available === 0) {
+                    res.status(400).json({
+                        error: `Sorry, ${check.rows.length ? check.rows[0].name : item.name} just sold out!`
+                    });
+                    return;
+                }
+            }
+        }
+
         const orderId = 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase();
 
         const tx = await db.transaction();
