@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { ArrowRight, Flame, Zap, Sparkles } from 'lucide-react';
 import EggScene from './EggScene';
 import { useIsMobile } from '../hooks/useIsMobile';
-import eggzillaLogo from '../assets/eggzilla-logo.png';
+import eggzillaLogo from '../assets/eggzilla-logo.webp';
 
 export default function Hero() {
   const isMobile = useIsMobile();

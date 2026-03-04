@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { Menu, X, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
-import eggzillaLogo from '../assets/eggzilla-logo.png';
+import eggzillaLogo from '../assets/eggzilla-logo.webp';
 
 interface NavbarProps {
   cartCount: number;

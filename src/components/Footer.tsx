@@ -1,6 +1,6 @@
 import { Instagram, Facebook, Twitter } from 'lucide-react';
 import { useState } from 'react';
-import eggzillaLogo from '../assets/eggzilla-logo.png';
+import eggzillaLogo from '../assets/eggzilla-logo.webp';
 
 export default function Footer() {
   const [tapCount, setTapCount] = useState(0);

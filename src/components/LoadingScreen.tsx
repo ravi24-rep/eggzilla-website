@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
-import eggzillaLogo from '../assets/eggzilla-logo.png';
+import eggzillaLogo from '../assets/eggzilla-logo.webp';
 
 export default function LoadingScreen() {
     const [isLoading, setIsLoading] = useState(true);
