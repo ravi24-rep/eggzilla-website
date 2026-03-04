@@ -7,7 +7,7 @@
     "dev": "tsx server/index.ts",
     "start": "tsx server/index.ts",
     "start:prod": "NODE_ENV=production tsx server/index.ts",
-    "build": "vite build && tsx server/seed.ts",
+    "build": "vite build",
     "seed": "tsx server/seed.ts",
     "preview": "vite preview",
     "predeploy": "set GITHUB_PAGES=true&& vite build",
