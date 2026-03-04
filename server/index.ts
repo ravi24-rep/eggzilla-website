@@ -96,6 +96,9 @@ app.post('/api/orders', async (req, res) => {
 
     try {
         // --- Validation: Check availability of all items before processing ---
+        const soldOutItems: string[] = [];
+        const soldOutNames: string[] = [];
+
         for (const item of items) {
             if (item.id) {
                 const check = await db.execute({
@@ -103,13 +106,18 @@ app.post('/api/orders', async (req, res) => {
                     args: [item.id]
                 });
                 if (check.rows.length === 0 || check.rows[0].available === 0) {
-                    res.status(400).json({
-                        error: `Sorry, ${check.rows.length ? check.rows[0].name : item.name} just sold out! It has been removed from your plate.`,
-                        soldOutItemId: item.id
-                    });
-                    return;
+                    soldOutItems.push(item.id);
+                    soldOutNames.push(check.rows.length ? (check.rows[0].name as string) : item.name);
                 }
             }
+        }
+
+        if (soldOutItems.length > 0) {
+            res.status(400).json({
+                error: `Sorry, the following items just sold out: ${soldOutNames.join(', ')}. They have been removed from your plate.`,
+                soldOutItemIds: soldOutItems
+            });
+            return;
         }
 
         const orderId = 'ORD-' + Math.random().toString(36).substr(2, 9).toUpperCase();

@@ -166,8 +166,12 @@ function CustomerApp() {
       if (!response.ok) {
         setIsCheckoutModalOpen(false);
         if (data.soldOutItemId) {
-          // Remove the specific sold out item from the cart
+          // Remove single item (legacy)
           setCart(prev => prev.filter(i => i.id !== data.soldOutItemId));
+        }
+        if (data.soldOutItemIds && Array.isArray(data.soldOutItemIds)) {
+          // Remove multiple items simultaneously
+          setCart(prev => prev.filter(i => !data.soldOutItemIds.includes(i.id)));
         }
         showToast(data.error || 'Failed to place order. Items might be out of stock.');
         return; // Halt checkout completely!
