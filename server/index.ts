@@ -312,12 +312,12 @@ app.post('/api/admin/login', (req, res) => {
 
 app.get('/api/admin/stats', async (req, res) => {
     try {
-        const totalOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE status != 'Cancelled'");
+        const totalOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'");
         const totalRevenueRes = await db.execute("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE status != 'Cancelled'");
         const pendingOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE status = 'Pending'");
         const todayOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'");
         const todayRevenueRes = await db.execute("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE DATE(created_at) = DATE('now') AND status != 'Cancelled'");
-        const cancelledOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE status = 'Cancelled'");
+        const cancelledOrdersRes = await db.execute("SELECT COUNT(*) as count FROM orders WHERE DATE(created_at) = DATE('now') AND status = 'Cancelled'");
 
         res.json({
             totalOrders: totalOrdersRes.rows[0].count,

@@ -725,8 +725,8 @@ export default function AdminDashboard() {
                 {/* Other Stats */}
                 <div className="grid grid-cols-3 gap-3">
                     <StatCard icon={Clock} label="Pending" value={stats.pendingOrders} color="bg-yellow-500" />
-                    <StatCard icon={ChefHat} label="Total Orders" value={stats.totalOrders} color="bg-purple-500" />
-                    <StatCard icon={Ban} label="Cancelled" value={stats.cancelledOrders} color="bg-red-500" />
+                    <StatCard icon={ChefHat} label="Today's Total" value={stats.totalOrders} color="bg-purple-500" />
+                    <StatCard icon={Ban} label="Today's Cancelled" value={stats.cancelledOrders} color="bg-red-500" />
                 </div>
 
                 {/* Quick Actions */}
