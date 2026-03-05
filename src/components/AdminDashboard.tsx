@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Lock, LogOut, RefreshCw, Package, IndianRupee, Clock, ChefHat, Eye, EyeOff, ArrowLeft, Ban, Bell, BellOff, Download, Trash2, Plus, BarChart3, TrendingUp, Star, Timer } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Lock, LogOut, RefreshCw, Package, IndianRupee, Clock, ChefHat, Eye, EyeOff, ArrowLeft, Ban, Bell, BellOff, Download, Trash2, Plus, BarChart3, TrendingUp, Star, Timer, CalendarDays, ChevronDown, ChevronRight } from 'lucide-react';
 
 // =============================================
 // TYPES
@@ -157,7 +157,29 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
 }
 
 // =============================================
-// ORDERS TABLE
+// HELPER: Format date to local date string key
+// =============================================
+function getLocalDateKey(createdAt: string): string {
+    const d = new Date(createdAt.replace(' ', 'T') + 'Z');
+    return d.toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function getDateLabel(createdAt: string): string {
+    const d = new Date(createdAt.replace(' ', 'T') + 'Z');
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const isSameDay = (a: Date, b: Date) =>
+        a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+    if (isSameDay(d, today)) return '📅 Today';
+    if (isSameDay(d, yesterday)) return '📅 Yesterday';
+    return '📅 ' + d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// =============================================
+// ORDERS TABLE (GROUPED BY DATE)
 // =============================================
 function OrdersSection({ orders, onRefresh, onStatusChange }: {
     orders: Order[];
@@ -166,6 +188,43 @@ function OrdersSection({ orders, onRefresh, onStatusChange }: {
 }) {
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+    const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
+
+    // Group orders by date
+    const groupedOrders = useMemo(() => {
+        const groups: { dateKey: string; label: string; orders: Order[]; revenue: number }[] = [];
+        const map = new Map<string, { label: string; orders: Order[]; revenue: number }>();
+
+        for (const order of orders) {
+            const key = getLocalDateKey(order.created_at);
+            if (!map.has(key)) {
+                const entry = { label: getDateLabel(order.created_at), orders: [] as Order[], revenue: 0 };
+                map.set(key, entry);
+                groups.push({ dateKey: key, ...entry });
+            }
+            const group = map.get(key)!;
+            group.orders.push(order);
+            if (order.status !== 'Cancelled') {
+                group.revenue += Number(order.total_amount) || 0;
+            }
+            // Keep the reference in groups array in sync
+            const gIdx = groups.findIndex(g => g.dateKey === key);
+            if (gIdx !== -1) {
+                groups[gIdx].orders = group.orders;
+                groups[gIdx].revenue = group.revenue;
+            }
+        }
+        return groups;
+    }, [orders]);
+
+    const toggleDateCollapse = (dateKey: string) => {
+        setCollapsedDates(prev => {
+            const next = new Set(prev);
+            if (next.has(dateKey)) next.delete(dateKey);
+            else next.add(dateKey);
+            return next;
+        });
+    };
 
     const loadOrderItems = async (orderId: string) => {
         if (expandedOrder === orderId) {
@@ -202,55 +261,82 @@ function OrdersSection({ orders, onRefresh, onStatusChange }: {
                     <p className="text-white/40 font-medium">No orders yet</p>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {orders.map(order => (
-                        <div key={order.id} className="bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
-                            <div className="p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors"
-                                onClick={() => loadOrderItems(order.id)}>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-white font-bold text-sm">{order.id}</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${statusColors[order.status] || 'bg-gray-500/20 text-gray-400'}`}>
-                                            {order.status}
-                                        </span>
+                <div className="space-y-5">
+                    {groupedOrders.map(group => {
+                        const isCollapsed = collapsedDates.has(group.dateKey);
+                        return (
+                            <div key={group.dateKey}>
+                                {/* Date Header */}
+                                <button
+                                    onClick={() => toggleDateCollapse(group.dateKey)}
+                                    className="w-full flex items-center justify-between mb-3 group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {isCollapsed ? <ChevronRight size={16} className="text-white/40" /> : <ChevronDown size={16} className="text-white/40" />}
+                                        <span className="text-white/80 font-bold text-sm">{group.label}</span>
+                                        <span className="text-white/20 text-xs font-medium">({group.orders.length} order{group.orders.length !== 1 ? 's' : ''})</span>
                                     </div>
-                                    <p className="text-white/60 text-sm truncate">{order.customer_name}</p>
-                                    <p className="text-white/30 text-xs">{new Date(order.created_at.replace(' ', 'T') + 'Z').toLocaleString()}</p>
-                                </div>
-                                <div className="text-right shrink-0">
-                                    <p className="text-amber-400 font-black text-lg">₹{order.total_amount}</p>
-                                    <p className="text-white/30 text-xs">{order.payment_method}</p>
-                                </div>
-                            </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-green-400 font-black text-sm">₹{Math.round(group.revenue)}</span>
+                                    </div>
+                                </button>
 
-                            {/* Expanded order items */}
-                            {expandedOrder === order.id && (
-                                <div className="border-t border-white/5 p-4 bg-white/[0.02]">
-                                    <p className="text-white/30 text-xs uppercase tracking-widest font-bold mb-3">Order Items</p>
-                                    {orderItems.map(item => (
-                                        <div key={item.id} className="flex justify-between text-sm py-1.5">
-                                            <span className="text-white/70">{item.item_name} <span className="text-white/30">x{item.quantity}</span></span>
-                                            <span className="text-white/50">₹{item.price}</span>
-                                        </div>
-                                    ))}
-                                    <div className="mt-3 pt-3 border-t border-white/5 flex gap-2">
-                                        {['Pending', 'Preparing', 'Completed', 'Cancelled'].map(status => (
-                                            <button
-                                                key={status}
-                                                onClick={(e) => { e.stopPropagation(); onStatusChange(order.id, status); }}
-                                                className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${order.status === status
-                                                    ? 'bg-amber-500 text-black'
-                                                    : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'
-                                                    }`}
-                                            >
-                                                {status}
-                                            </button>
+                                {/* Orders for this date */}
+                                {!isCollapsed && (
+                                    <div className="space-y-3">
+                                        {group.orders.map(order => (
+                                            <div key={order.id} className="bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
+                                                <div className="p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors"
+                                                    onClick={() => loadOrderItems(order.id)}>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-white font-bold text-sm">{order.id}</span>
+                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${statusColors[order.status] || 'bg-gray-500/20 text-gray-400'}`}>
+                                                                {order.status}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-white/60 text-sm truncate">{order.customer_name}</p>
+                                                        <p className="text-white/30 text-xs">{new Date(order.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-amber-400 font-black text-lg">₹{order.total_amount}</p>
+                                                        <p className="text-white/30 text-xs">{order.payment_method}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Expanded order items */}
+                                                {expandedOrder === order.id && (
+                                                    <div className="border-t border-white/5 p-4 bg-white/[0.02]">
+                                                        <p className="text-white/30 text-xs uppercase tracking-widest font-bold mb-3">Order Items</p>
+                                                        {orderItems.map(item => (
+                                                            <div key={item.id} className="flex justify-between text-sm py-1.5">
+                                                                <span className="text-white/70">{item.item_name} <span className="text-white/30">x{item.quantity}</span></span>
+                                                                <span className="text-white/50">₹{item.price}</span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="mt-3 pt-3 border-t border-white/5 flex gap-2">
+                                                            {['Pending', 'Preparing', 'Completed', 'Cancelled'].map(status => (
+                                                                <button
+                                                                    key={status}
+                                                                    onClick={(e) => { e.stopPropagation(); onStatusChange(order.id, status); }}
+                                                                    className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${order.status === status
+                                                                        ? 'bg-amber-500 text-black'
+                                                                        : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70'
+                                                                        }`}
+                                                                >
+                                                                    {status}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         ))}
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -616,10 +702,28 @@ export default function AdminDashboard() {
             </div>
 
             <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <StatCard icon={Package} label="Today's Orders" value={stats.todayOrders} color="bg-blue-500" />
-                    <StatCard icon={IndianRupee} label="Today's Revenue" value={`₹${stats.todayRevenue}`} color="bg-green-500" />
+                {/* Today's Revenue - Highlighted */}
+                <div className="bg-gradient-to-r from-green-600/30 via-green-500/20 to-emerald-600/30 rounded-2xl p-5 border border-green-500/20 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-green-400/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+                    <div className="relative flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-green-500 p-3 rounded-2xl shadow-lg shadow-green-500/30">
+                                <IndianRupee size={24} className="text-white" />
+                            </div>
+                            <div>
+                                <p className="text-green-300/60 text-xs font-bold uppercase tracking-widest">Today's Revenue</p>
+                                <p className="text-3xl font-black text-white">₹{stats.todayRevenue}</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-green-300/50 text-xs font-medium">Today's Orders</p>
+                            <p className="text-2xl font-black text-green-300">{stats.todayOrders}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Other Stats */}
+                <div className="grid grid-cols-3 gap-3">
                     <StatCard icon={Clock} label="Pending" value={stats.pendingOrders} color="bg-yellow-500" />
                     <StatCard icon={ChefHat} label="Total Orders" value={stats.totalOrders} color="bg-purple-500" />
                     <StatCard icon={Ban} label="Cancelled" value={stats.cancelledOrders} color="bg-red-500" />
